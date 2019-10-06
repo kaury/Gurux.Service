@@ -1,7 +1,7 @@
 ﻿//
 // --------------------------------------------------------------------------
 //  Gurux Ltd
-// 
+//
 //
 //
 // Filename:        $HeadURL$
@@ -19,14 +19,14 @@
 // This file is a part of Gurux Device Framework.
 //
 // Gurux Device Framework is Open Source software; you can redistribute it
-// and/or modify it under the terms of the GNU General Public License 
+// and/or modify it under the terms of the GNU General Public License
 // as published by the Free Software Foundation; version 2 of the License.
 // Gurux Device Framework is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of 
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 // See the GNU General Public License for more details.
 //
-// This code is licensed under the GNU General Public License v2. 
+// This code is licensed under the GNU General Public License v2.
 // Full text may be retrieved at http://www.gnu.org/licenses/gpl-2.0.txt
 //---------------------------------------------------------------------------
 
@@ -83,6 +83,19 @@ namespace Gurux.Service.Orm
         {
             get;
             private set;
+        }
+
+        /// <summary>
+        /// Null string is handled as empty string.
+        /// </summary>
+        /// <remarks>
+        /// NULL string is saved as empty string or convert to empty string when null string is read from the DB.
+        /// </remarks>
+        [DefaultValue(false)]
+        public bool UseEmptyString
+        {
+            get;
+            set;
         }
 
         /// <summary>
@@ -233,7 +246,7 @@ namespace Gurux.Service.Orm
                         {
                             GetTables(it.Value.Type, tables);
                         }
-                        //Add 1:1 relation table.                        
+                        //Add 1:1 relation table.
                         if (!tables.ContainsKey(it.Value.Relation.ForeignTable))
                         {
                             GetTables(it.Value.Relation.ForeignTable, tables);
@@ -242,7 +255,7 @@ namespace Gurux.Service.Orm
                                 tables.Add(it.Value.Relation.ForeignTable, it.Value.Relation.ForeignId);
                             }
                         }
-                        //Add relation map table.                                        
+                        //Add relation map table.
                         if (it.Value.Relation.RelationMapTable != null)
                         {
                             if (!tables.ContainsKey(it.Value.Relation.RelationMapTable.Relation.PrimaryTable))
@@ -769,24 +782,27 @@ namespace Gurux.Service.Orm
                                     required = attr[0].IsRequired;
                                 }
                             }
-
-                            if ((it.Value.Attributes & Attributes.PrimaryKey) == 0 &&
-                                (!required ||
-                                (it.Value.Type.IsGenericType && it.Value.Type.GetGenericTypeDefinition() == typeof(Nullable<>)) ||
-                                it.Value.Type.IsArray))
+                            if (!(Builder.Settings.Type == DatabaseType.Oracle &&
+                                (it.Value.DefaultValue != null || (it.Value.Attributes & (Attributes.AutoIncrement | Attributes.PrimaryKey)) != 0)))
                             {
-                                //If nullable.
-                                sb.Append(" NULL ");
-                            }
-                            else
-                            {
-                                sb.Append(" NOT NULL ");
+                                if ((it.Value.Attributes & Attributes.PrimaryKey) == 0 &&
+                                    (!required ||
+                                    (it.Value.Type.IsGenericType && it.Value.Type.GetGenericTypeDefinition() == typeof(Nullable<>)) ||
+                                    it.Value.Type.IsArray))
+                                {
+                                    //If nullable.
+                                    sb.Append(" NULL ");
+                                }
+                                else
+                                {
+                                    sb.Append(" NOT NULL ");
+                                }
                             }
                             //If field is marked as auto increment or primary key.
                             if ((it.Value.Attributes & (Attributes.AutoIncrement | Attributes.PrimaryKey)) != 0)
                             {
 #if !NETCOREAPP2_0 && !NETCOREAPP2_1
-                                if (Builder.Settings.Type != DatabaseType.Access)
+                                if (Builder.Settings.Type != DatabaseType.Access && Builder.Settings.Type != DatabaseType.Oracle)
                                 {
                                     sb.Append(" PRIMARY KEY ");
                                     if ((it.Value.Attributes & Attributes.AutoIncrement) != 0)
@@ -803,6 +819,18 @@ namespace Gurux.Service.Orm
                                     }
                                     sb.Append(" PRIMARY KEY ");
                                 }
+                                if (it.Value.DefaultValue == null && Builder.Settings.Type == DatabaseType.Oracle)
+                                {
+                                    if ((it.Value.Attributes & Attributes.PrimaryKey) == 0 && (!required || (it.Value.Type.IsGenericType && it.Value.Type.GetGenericTypeDefinition() == typeof(Nullable<>)) || it.Value.Type.IsArray))
+                                    {
+                                        //If nullable.
+                                        sb.Append(" NULL ");
+                                    }
+                                    else
+                                    {
+                                        sb.Append(" NOT NULL ");
+                                    }
+                                }
                             }
                             else if (it.Value.DefaultValue != null)
                             {
@@ -810,7 +838,14 @@ namespace Gurux.Service.Orm
                                 sb.Append(" DEFAULT ");
                                 if (it.Value.DefaultValue is Enum)
                                 {
-                                    sb.Append(Convert.ToString((int)it.Value.DefaultValue));
+                                    if (this.Builder.Settings.UseEnumStringValue)
+                                    {
+                                        sb.Append("'" + Convert.ToString(it.Value.DefaultValue) + "'");
+                                    }
+                                    else
+                                    {
+                                        sb.Append(Convert.ToString((int)it.Value.DefaultValue));
+                                    }
                                 }
                                 else if (it.Value.DefaultValue is string)
                                 {
@@ -859,7 +894,7 @@ namespace Gurux.Service.Orm
                                 }
                                 ForeignKeyAttribute fk = ((ForeignKeyAttribute[])(it.Value.Target as PropertyInfo).GetCustomAttributes(typeof(ForeignKeyAttribute), true))[0];
 
-                                //Name is generated automatically at the moment. Use CONSTRAINT to give name to the Foreign key.                                
+                                //Name is generated automatically at the moment. Use CONSTRAINT to give name to the Foreign key.
                                 sb.Append(" FOREIGN KEY (");
                                 sb.Append(GXDbHelpers.AddQuotes(name, Builder.Settings.ColumnQuotation));
                                 sb.Append(") REFERENCES ");
@@ -996,7 +1031,7 @@ namespace Gurux.Service.Orm
                             name = it.Key;
                             sb.Append(GetIndexName(tableName, name));
                         }
-                        //Index name.                            
+                        //Index name.
                         sb.Append(" ON ");
                         sb.Append(Builder.GetTableName(type, true));
                         //sb.Append(tableName);
@@ -1667,7 +1702,7 @@ namespace Gurux.Service.Orm
                         tableName);
                     break;
                 case DatabaseType.Oracle:
-                    query = string.Format("SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = '{0}'", tableName);
+                    query = string.Format("SELECT COUNT(*) FROM USER_TABLES WHERE TABLE_NAME = '{0}'", tableName.ToUpper());
                     break;
                 case DatabaseType.SqLite:
                     query = string.Format("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = '{0}'", tableName);
@@ -1709,7 +1744,7 @@ namespace Gurux.Service.Orm
                     StringLengthAttribute[] attr = (StringLengthAttribute[])type.GetCustomAttributes(typeof(StringLengthAttribute), true);
                     if (attr.Length == 0)
                     {
-                        return this.Builder.Settings.StringColumnDefinition(0);
+                        return this.Builder.Settings.StringColumnDefinition(100);
                     }
                     return this.Builder.Settings.StringColumnDefinition(attr[0].MaximumLength);
                 }
@@ -1868,7 +1903,7 @@ namespace Gurux.Service.Orm
             public string Name;
             /// <summary>
             /// Table name.
-            /// </summary>         
+            /// </summary>
             public string Table;
 
             public Type TableType;
@@ -2073,7 +2108,7 @@ namespace Gurux.Service.Orm
             object[] values = null;
             Dictionary<Type, GXSerializedItem> tables = null;
             Type type = typeof(T);
-            //Dictionary of read tables by name.             
+            //Dictionary of read tables by name.
             string maintable = Builder.GetTableName(type, false);
             Dictionary<int, GXColumnHelper> columns = null;
             Dictionary<Type, int> TableIndexes = null;
@@ -2221,7 +2256,7 @@ namespace Gurux.Service.Orm
                                             {
                                                 if (objects.ContainsKey(col.TableType))
                                                 {
-                                                    // Check is item already created.                                            
+                                                    // Check is item already created.
                                                     if (objects[col.TableType].ContainsKey(GXInternal.ChangeType(id, col.Setter.Type, Builder.Settings.UniversalTime)))
                                                     {
                                                         isCreated = true;
@@ -2483,7 +2518,7 @@ namespace Gurux.Service.Orm
             object[] values = null;
             Dictionary<Type, GXSerializedItem> tables = null;
             Type type = typeof(T);
-            //Dictionary of read tables by name.             
+            //Dictionary of read tables by name.
             string maintable = Builder.GetTableName(type, false);
             Dictionary<int, GXColumnHelper> columns = null;
             Dictionary<Type, int> TableIndexes = null;
@@ -2642,7 +2677,7 @@ namespace Gurux.Service.Orm
                                                 {
                                                     if (objects.ContainsKey(col.TableType))
                                                     {
-                                                        // Check is item already created.                                            
+                                                        // Check is item already created.
                                                         if (objects[col.TableType].ContainsKey(GXInternal.ChangeType(id, col.Setter.Type, Builder.Settings.UniversalTime)))
                                                         {
                                                             isCreated = true;
@@ -2726,6 +2761,10 @@ namespace Gurux.Service.Orm
                                                 if (col.Setter.Type.IsArray || GXInternal.IsGenericDataType(col.Setter.Type))
                                                 {
                                                     value = GXInternal.ChangeType(values[pos], col.Setter.Type, Builder.Settings.UniversalTime);
+                                                    if (value == null && col.Setter.Type == typeof(string) && UseEmptyString)
+                                                    {
+                                                        value = "";
+                                                    }
                                                 }
                                                 else //Parameter type is class. Set to null.
                                                 {
@@ -3253,7 +3292,7 @@ namespace Gurux.Service.Orm
                             foreach (string col in GetColumns(table))
                             {
                                 bool isunique = false;
-                                //AutoIncrement                                    
+                                //AutoIncrement
                                 bool ai = IsAutoIncrement(table, col, Connection);
                                 //Data type
                                 string def = GetColumnDefaultValueQuery(table, col, Connection);
@@ -3409,6 +3448,51 @@ namespace Gurux.Service.Orm
                 finally
                 {
                     Connection.Close();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Delete ALL items from the table.
+        /// </summary>
+        public void Truncate<T>()
+        {
+            //SQLite don't support truncate.
+            if (Builder.Settings.Type == DatabaseType.SqLite)
+            {
+                Delete(GXDeleteArgs.DeleteAll<T>());
+            }
+            else
+            {
+                IDbTransaction transaction = Transaction;
+                bool autoTransaction = transaction == null;
+                lock (Connection)
+                {
+                    if (AutoTransaction)
+                    {
+                        transaction = Connection.BeginTransaction();
+                    }
+                    try
+                    {
+                        string query = "TRUNCATE TABLE " + Builder.GetTableName(typeof(T), true);
+                        ExecuteNonQuery(transaction, query);
+                        transaction.Commit();
+                    }
+                    catch (Exception ex)
+                    {
+                        if (autoTransaction && transaction != null)
+                        {
+                            transaction.Rollback();
+                        }
+                        throw ex;
+                    }
+                    finally
+                    {
+                        if (autoTransaction && transaction != null)
+                        {
+                            transaction.Dispose();
+                        }
+                    }
                 }
             }
         }
