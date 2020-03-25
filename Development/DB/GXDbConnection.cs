@@ -450,6 +450,14 @@ namespace Gurux.Service.Orm
                     {
                         if (!cols.Contains(it.Key))
                         {
+                            if (it.Value.Relation != null && it.Value.Relation.ForeignTable != type)
+                            {
+                                if (it.Value.Relation.RelationType == RelationType.OneToOne ||
+                                    it.Value.Relation.RelationType == RelationType.OneToMany)
+                                {
+                                    continue;
+                                }
+                            }
                             StringBuilder sb = new StringBuilder();
                             sb.Append("ALTER TABLE ");
                             sb.Append(GXDbHelpers.AddQuotes(tableName, Builder.Settings.TableQuotation));
@@ -639,6 +647,7 @@ namespace Gurux.Service.Orm
                     }
                     Type original = type;
                     List<string> serialized = new List<string>();
+                    StringBuilder fkStr = new StringBuilder();
                     do
                     {
                         foreach (var it in GXSqlBuilder.GetProperties(type))
@@ -802,22 +811,22 @@ namespace Gurux.Service.Orm
                             if ((it.Value.Attributes & (Attributes.AutoIncrement | Attributes.PrimaryKey)) != 0)
                             {
 #if !NETCOREAPP2_0 && !NETCOREAPP2_1
-                                if (Builder.Settings.Type != DatabaseType.Access && Builder.Settings.Type != DatabaseType.Oracle)
+                                if (Builder.Settings.Type == DatabaseType.Access || Builder.Settings.Type == DatabaseType.Oracle)
                                 {
-                                    sb.Append(" PRIMARY KEY ");
                                     if ((it.Value.Attributes & Attributes.AutoIncrement) != 0)
                                     {
                                         sb.Append(Builder.Settings.AutoIncrementDefinition);
                                     }
+                                    sb.Append(" PRIMARY KEY ");
                                 }
                                 else
 #endif //!NETCOREAPP2_0 && !NETCOREAPP2_1
                                 {
+                                    sb.Append(" PRIMARY KEY ");
                                     if ((it.Value.Attributes & Attributes.AutoIncrement) != 0)
                                     {
                                         sb.Append(Builder.Settings.AutoIncrementDefinition);
                                     }
-                                    sb.Append(" PRIMARY KEY ");
                                 }
                                 if (it.Value.DefaultValue == null && Builder.Settings.Type == DatabaseType.Oracle)
                                 {
@@ -851,6 +860,10 @@ namespace Gurux.Service.Orm
                                 {
                                     sb.Append("'" + (string)it.Value.DefaultValue + "'");
                                 }
+                                else if (it.Value.DefaultValue is bool)
+                                {
+                                    sb.Append((bool)it.Value.DefaultValue ? 1 : 0);
+                                }
                                 else
                                 {
                                     sb.Append(Convert.ToString(it.Value.DefaultValue));
@@ -859,7 +872,7 @@ namespace Gurux.Service.Orm
                             if (it.Value.Relation != null && it.Value.Relation.ForeignTable != type &&
                                     it.Value.Relation.RelationType == RelationType.OneToOne)
                             {
-                                sb.Append(", ");
+                                fkStr.Append(", ");
                                 string pk;
                                 if (it.Value.Relation.RelationType == RelationType.ManyToMany)
                                 {
@@ -895,27 +908,27 @@ namespace Gurux.Service.Orm
                                 ForeignKeyAttribute fk = ((ForeignKeyAttribute[])(it.Value.Target as PropertyInfo).GetCustomAttributes(typeof(ForeignKeyAttribute), true))[0];
 
                                 //Name is generated automatically at the moment. Use CONSTRAINT to give name to the Foreign key.
-                                sb.Append(" FOREIGN KEY (");
-                                sb.Append(GXDbHelpers.AddQuotes(name, Builder.Settings.ColumnQuotation));
-                                sb.Append(") REFERENCES ");
-                                sb.Append(GXDbHelpers.AddQuotes(table2, Builder.Settings.TableQuotation));
-                                sb.Append("(");
-                                sb.Append(pk);
-                                sb.Append(")");
+                                fkStr.Append(" FOREIGN KEY (");
+                                fkStr.Append(GXDbHelpers.AddQuotes(name, Builder.Settings.ColumnQuotation));
+                                fkStr.Append(") REFERENCES ");
+                                fkStr.Append(GXDbHelpers.AddQuotes(table2, Builder.Settings.TableQuotation));
+                                fkStr.Append("(");
+                                fkStr.Append(pk);
+                                fkStr.Append(")");
                                 switch (fk.OnDelete)
                                 {
                                     case ForeignKeyDelete.None:
                                         //Foreign key on delete is not used.
                                         break;
                                     case ForeignKeyDelete.Cascade:
-                                        sb.Append(" ON DELETE CASCADE");
+                                        fkStr.Append(" ON DELETE CASCADE");
                                         break;
                                     case ForeignKeyDelete.Empty:
                                         //Emit will cause this.
                                         break;
                                     case ForeignKeyDelete.Restrict:
                                         //ON DELETE NO ACTION will also work.
-                                        sb.Append(" ON DELETE RESTRICT");
+                                        fkStr.Append(" ON DELETE RESTRICT");
                                         break;
                                     default:
                                         break;
@@ -926,17 +939,17 @@ namespace Gurux.Service.Orm
                                         //Foreign key on update is not used.
                                         break;
                                     case ForeignKeyUpdate.Cascade:
-                                        sb.Append(" ON UPDATE CASCADE");
+                                        fkStr.Append(" ON UPDATE CASCADE");
                                         break;
                                     case ForeignKeyUpdate.Reject:
                                         //Emit will cause this.
                                         break;
                                     case ForeignKeyUpdate.Restrict:
                                         //ON UPDATE NO ACTION will also work.
-                                        sb.Append(" ON UPDATE RESTRICT");
+                                        fkStr.Append(" ON UPDATE RESTRICT");
                                         break;
                                     case ForeignKeyUpdate.Null:
-                                        sb.Append(" ON UPDATE SET NULL");
+                                        fkStr.Append(" ON UPDATE SET NULL");
                                         break;
                                     default:
                                         break;
@@ -956,6 +969,7 @@ namespace Gurux.Service.Orm
                     }
                     while (true);
                     type = original;
+                    sb.Append(fkStr);
                     if (create)
                     {
                         sb.Append(')');
@@ -1384,7 +1398,7 @@ namespace Gurux.Service.Orm
             string query;
             int index = 0;
             List<string> list;
-#if !NETCOREAPP2_0 && !NETCOREAPP2_1
+#if !NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
             if (type == DatabaseType.Access)
             {
                 DataTable dt;
@@ -1404,7 +1418,7 @@ namespace Gurux.Service.Orm
                 return list.ToArray();
             }
             else
-#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1
+#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
             {
                 query = Builder.Settings.GetColumnsQuery(connection.Database, tableName, out index);
             }
@@ -1656,7 +1670,7 @@ namespace Gurux.Service.Orm
                 case DatabaseType.SqLite:
                     query = "SELECT NAME FROM sqlite_master WHERE type='table'";
                     break;
-#if !NETCOREAPP2_0 && !NETCOREAPP2_1
+#if !NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                 case DatabaseType.Access:
                     DataTable dt;
                     if (Connection as System.Data.OleDb.OleDbConnection != null)
@@ -1676,7 +1690,7 @@ namespace Gurux.Service.Orm
                         }
                     }
                     return list.ToArray();
-#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1
+#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                 default:
                     throw new ArgumentOutOfRangeException("TableExist failed. Unknown database connection.");
             }
@@ -1707,7 +1721,7 @@ namespace Gurux.Service.Orm
                 case DatabaseType.SqLite:
                     query = string.Format("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name = '{0}'", tableName);
                     break;
-#if !NETCOREAPP2_0 && !NETCOREAPP2_1
+#if !NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                 case DatabaseType.Access:
                     DataTable dt;
                     if (Connection as System.Data.OleDb.OleDbConnection != null)
@@ -1719,7 +1733,7 @@ namespace Gurux.Service.Orm
                         dt = (Connection as System.Data.Odbc.OdbcConnection).GetSchema("Tables", new string[] { null, null, tableName });
                     }
                     return dt.Rows.Count != 0;
-#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1
+#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                 default:
                     throw new ArgumentOutOfRangeException("TableExist failed. Unknown database connection.");
             }
@@ -2091,7 +2105,10 @@ namespace Gurux.Service.Orm
                     //Add table index position.
                     if (TableIndexes != null && (c.Setter.Attributes & Attributes.PrimaryKey) != 0)
                     {
-                        TableIndexes.Add(tableType, pos);
+                        if (!TableIndexes.ContainsKey(tableType))
+                        {
+                            TableIndexes.Add(tableType, pos);
+                        }
                     }
                 }
                 c.TableType = tableType;
@@ -2157,7 +2174,7 @@ namespace Gurux.Service.Orm
                 //Read column headers.
                 if (columns != null)
                 {
-#if !NETCOREAPP2_0 && !NETCOREAPP2_1
+#if !NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                     if (Connection is OdbcConnection)
                     {
                         using (IDbCommand com = ((OdbcConnection)Connection).CreateCommand())
@@ -2184,7 +2201,7 @@ namespace Gurux.Service.Orm
                             }
                         }
                     }
-#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1
+#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
 
                 }
                 using (IDbCommand com = Connection.CreateCommand())
@@ -2577,7 +2594,7 @@ namespace Gurux.Service.Orm
                 //Read column headers.
                 if (columns != null)
                 {
-#if !NETCOREAPP2_0 && !NETCOREAPP2_1
+#if !NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                     if (Connection is OdbcConnection)
                     {
                         using (IDbCommand com = ((OdbcConnection)Connection).CreateCommand())
@@ -2604,7 +2621,7 @@ namespace Gurux.Service.Orm
                             }
                         }
                     }
-#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1
+#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                 }
                 using (IDbCommand com = Connection.CreateCommand())
                 {
@@ -2822,11 +2839,11 @@ namespace Gurux.Service.Orm
                             reader.Close();
                         }
                     }
-#if !NETCOREAPP2_0 && !NETCOREAPP2_1
+#if !NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                     catch (SqlException ex)
 #else
                     catch (Exception ex)
-#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1
+#endif //!NETCOREAPP2_0 && !NETCOREAPP2_1 && !NETCOREAPP3_1
                     {
                         throw new Exception(ex.Message + "\r\n" + com.CommandText, ex);
                     }

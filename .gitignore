@@ -17,6 +17,7 @@ local.properties
 .loadpath
 Gurux.Service.TestWebService/
 Gurux.Service_UnitTests/
+Development\.vs
 
 # External tool builders
 .externalToolBuilders/
@@ -182,3 +183,5 @@ Development/.vs/Gurux.Service/DesignTimeBuild/.dtbcache
 Development/.vs/Gurux.Service/DesignTimeBuild/.dtbcache
 Development/.vs/Gurux.Service/DesignTimeBuild/.dtbcache
 *.zip
+*.testlog
+*.manifest

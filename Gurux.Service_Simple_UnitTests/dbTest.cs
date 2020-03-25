@@ -1,7 +1,7 @@
 ﻿//
 // --------------------------------------------------------------------------
 //  Gurux Ltd
-// 
+//
 //
 //
 // Filename:        $HeadURL$
@@ -19,14 +19,14 @@
 // This file is a part of Gurux Device Framework.
 //
 // Gurux Device Framework is Open Source software; you can redistribute it
-// and/or modify it under the terms of the GNU General Public License 
+// and/or modify it under the terms of the GNU General Public License
 // as published by the Free Software Foundation; version 2 of the License.
 // Gurux Device Framework is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of 
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 // See the GNU General Public License for more details.
 //
-// This code is licensed under the GNU General Public License v2. 
+// This code is licensed under the GNU General Public License v2.
 // Full text may be retrieved at http://www.gnu.org/licenses/gpl-2.0.txt
 //---------------------------------------------------------------------------
 
@@ -74,15 +74,15 @@ namespace Gurux.Service_Test
         //
         // Use ClassInitialize to run code before running the first test in the class
         //[ClassInitialize()]
-        //public static void MyClassInitialize(TestContext testContext) 
-        //{            
+        //public static void MyClassInitialize(TestContext testContext)
+        //{
         //}
         //
         // Use ClassCleanup to run code after all tests in a class have run
         // [ClassCleanup()]
         // public static void MyClassCleanup() { }
         //
-        // Use TestInitialize to run code before running each test 
+        // Use TestInitialize to run code before running each test
         [TestInitialize()]
         public void MyTestInitialize()
         {
@@ -115,6 +115,16 @@ namespace Gurux.Service_Test
         }
 
         /// <summary>
+        /// Select only part of columns.
+        /// </summary>
+        [TestMethod]
+        public void GetPartTest()
+        {
+            GXSelectArgs arg = GXSelectArgs.Select<TestIDClass>(c => new object[] { c.Id, c.Text }, q => q.Id == 1);
+            Assert.AreEqual("SELECT `ID`, `Text` FROM TestIDClass WHERE TestIDClass.`ID` = 1", arg.ToString());
+        }
+
+        /// <summary>
         /// Select id by id test.
         /// </summary>
         [TestMethod]
@@ -132,7 +142,7 @@ namespace Gurux.Service_Test
         {
             GXSelectArgs arg = GXSelectArgs.Select<DeviceGroup3>(q => q.Id);
             arg.Where.And<DeviceGroup3>(q => q.Id == 1);
-            Assert.AreEqual("SELECT `Id` AS `DG.Id` FROM DeviceGroup3 `DG` WHERE DG.`Id` = 1", arg.ToString());
+            Assert.AreEqual("SELECT `Id` AS `DG.Id` FROM DeviceGroup3 DG WHERE DG.`Id` = 1", arg.ToString());
         }
 
         /// <summary>
@@ -430,6 +440,64 @@ namespace Gurux.Service_Test
         }
 
         /// <summary>
+        /// Select Guid where Text equals with Gurux.
+        /// </summary>
+        [TestMethod]
+        public void WhereEquals2Test()
+        {
+            TestClass t = new TestClass();
+            t.Id = 1;
+            t.Text = "Gurux";
+            GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => new { x.Guid });
+            arg.Where.And<TestClass>(q => q.Text.Equals(t.Text, StringComparison.OrdinalIgnoreCase));
+            Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE UPPER(TestClass.`Text`) LIKE('GURUX')", arg.ToString());
+        }
+
+        /// <summary>
+        /// Select Guid where Text equals with Gurux.
+        /// </summary>
+        [TestMethod]
+        public void WhereEquals3Test()
+        {
+            TestClass t = new TestClass();
+            t.Id = 1;
+            t.Text = "Gurux";
+            GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => new { x.Guid });
+            arg.Where.And<TestClass>(q => q.Text == t.Text);
+            Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE TestClass.`Text` = 'Gurux'", arg.ToString());
+        }
+
+        /// <summary>
+        /// Select Guid where Text equals with Gurux.
+        /// </summary>
+        [TestMethod]
+        public void WhereEquals4Test()
+        {
+            TestClass t = new TestClass();
+            t.Id = 1;
+            t.Text = "Gurux";
+            GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => new { x.Guid });
+            string mikko = t.Text;
+            arg.Where.And<TestClass>(q => q.Id == t.Id && q.Text.Equals(t.Text));
+            Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE (TestClass.`ID` = 1) AND (UPPER(TestClass.`Text`) LIKE('GURUX'))", arg.ToString());
+        }
+
+        /// <summary>
+        /// Select Guid where Text equals with Gurux.
+        /// </summary>
+        [TestMethod]
+        public void WhereEquals5Test()
+        {
+            TestClass t = new TestClass();
+            t.Id = 1;
+            t.Text = "Gurux";
+            GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => new { x.Guid });
+            string mikko = t.Text;
+            arg.Where.And<TestClass>(q => q.Text.Equals(t.Text) && q.Id == t.Id);
+            Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE (UPPER(TestClass.`Text`) LIKE('GURUX')) AND (TestClass.`ID` = 1)", arg.ToString());
+        }
+
+        /// <summary>
         /// Select Guid where ID = 1 2, or 3.
         /// </summary>
         [TestMethod]
@@ -493,9 +561,22 @@ namespace Gurux.Service_Test
         [TestMethod]
         public void SqlInTest()
         {
+
             GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => x.Guid);
             arg.Where.And<TestClass>(q => new int[] { 1, 2, 3 }.Contains(q.Id));
             Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE TestClass.`ID` IN (1, 2, 3)", arg.ToString());
+        }
+
+        /// <summary>
+        /// Select Guid where ID not in array.
+        /// </summary>
+        [TestMethod]
+        public void SqlNotInTest()
+        {
+            int[] list = new int[] { 1, 2, 3 };
+            GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => x.Guid);
+            arg.Where.And<TestClass>(q => !list.Contains(q.Id));
+            Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE TestClass.`ID` NOT IN (1, 2, 3)", arg.ToString());
         }
 
         /// <summary>
@@ -506,7 +587,7 @@ namespace Gurux.Service_Test
         {
             GXSelectArgs arg = GXSelectArgs.Select<TestClass>(q => q.Id);
             arg.OrderBy.Add<TestClass>(q => new { q.Id, q.Guid });
-            Assert.AreEqual("SELECT `ID` FROM TestClass ORDER BY `TestClass`.ID, `TestClass`.Guid", arg.ToString());
+            Assert.AreEqual("SELECT `ID` FROM TestClass ORDER BY TestClass.`ID`, TestClass.`Guid`", arg.ToString());
         }
 
         /// <summary>
@@ -518,7 +599,7 @@ namespace Gurux.Service_Test
             GXSelectArgs arg = GXSelectArgs.Select<TestClass>(q => q.Id);
             arg.OrderBy.Add<TestClass>(q => q.Id);
             arg.OrderBy.Add<TestClass>(q => q.Guid);
-            Assert.AreEqual("SELECT `ID` FROM TestClass ORDER BY `TestClass`.ID, `TestClass`.Guid", arg.ToString());
+            Assert.AreEqual("SELECT `ID` FROM TestClass ORDER BY TestClass.`ID`, TestClass.`Guid`", arg.ToString());
         }
 
         /// <summary>
@@ -530,7 +611,7 @@ namespace Gurux.Service_Test
             GXSelectArgs arg = GXSelectArgs.Select<TestClass>(q => q.Id);
             arg.OrderBy.Add<TestClass>(q => q.Id);
             arg.Descending = true;
-            Assert.AreEqual("SELECT `ID` FROM TestClass ORDER BY `TestClass`.ID DESC", arg.ToString());
+            Assert.AreEqual("SELECT `ID` FROM TestClass ORDER BY TestClass.`ID` DESC", arg.ToString());
         }
 
         /// <summary>
@@ -611,6 +692,58 @@ namespace Gurux.Service_Test
             expected = "WHERE (TestClass.`Text` IS NULL OR TestClass.`Text` = '')";
             args = GXSelectArgs.SelectAll<TestClass>(q => string.IsNullOrEmpty(q.Text));
             actual = args.Where.ToString();
+            Assert.AreEqual(expected, actual);
+        }
+
+        /// <summary>
+        /// Select Guid where ID in array.
+        /// </summary>
+        [TestMethod]
+        public void SqlIn2Test()
+        {
+            GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => x.Guid);
+            arg.Where.And<TestClass>(q => GXSql.In(q.Id, new int[] { 1, 2, 3 }));
+            Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE TestClass.`ID` IN (1, 2, 3)", arg.ToString());
+        }
+
+        /// <summary>
+        /// Select Guid where ID in array.
+        /// </summary>
+        [TestMethod]
+        public void SqlNotIn2Test()
+        {
+            GXSelectArgs arg = GXSelectArgs.Select<TestClass>(x => x.Guid);
+            arg.Where.And<TestClass>(q => !GXSql.In(q.Id, new int[] { 1, 2, 3 }));
+            Assert.AreEqual("SELECT `Guid` FROM TestClass WHERE TestClass.`ID` NOT IN (1, 2, 3)", arg.ToString());
+        }
+
+        /// <summary>
+        /// Select Guid where ID is in the array.
+        /// </summary>
+        [TestMethod]
+        public void ExistsTest()
+        {
+            GXSelectArgs arg2 = GXSelectArgs.Select<Company>(q => q.Id);
+            arg2.Where.And<Company>(q => q.Name.Equals("Gurux"));
+            GXSelectArgs arg = GXSelectArgs.SelectAll<Country>();
+            arg.Where.And<Country>(q => GXSql.Exists<Company, Country>(a => a.Country, b => b.Id, arg2));
+            string expected = "SELECT `ID`, `CountryName` FROM Country WHERE EXISTS (SELECT `Id` FROM Company WHERE UPPER(Company.`Name`) LIKE('GURUX') AND Country.`ID` = Company.`CountryID`)";
+            string actual = arg.ToString();
+            Assert.AreEqual(expected, actual);
+        }
+
+        /// <summary>
+        /// Select Guid where ID is not in the array.
+        /// </summary>
+        [TestMethod]
+        public void NotExistsTest()
+        {
+            GXSelectArgs arg2 = GXSelectArgs.Select<Company>(q => q.Id);
+            arg2.Where.And<Company>(q => q.Name.Equals("Gurux"));
+            GXSelectArgs arg = GXSelectArgs.SelectAll<Country>();
+            arg.Where.And<Country>(q => !GXSql.Exists<Company, Country>(a => a.Country, b => b.Id, arg2));
+            string expected = "SELECT `ID`, `CountryName` FROM Country WHERE NOT EXISTS (SELECT `Id` FROM Company WHERE UPPER(Company.`Name`) LIKE('GURUX') AND Country.`ID` = Company.`CountryID`)";
+            string actual = arg.ToString();
             Assert.AreEqual(expected, actual);
         }
     }
